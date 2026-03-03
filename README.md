@@ -97,7 +97,7 @@ The script supports a --limit flag for testing and a --delay flag to manage rate
 
 Test a small batch (10 items):
 
-python cvs_scraper_v2.py --limit 10
+python cvs.py --limit 10
 
 
 Run the full inventory:
