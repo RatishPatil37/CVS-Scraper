@@ -1,20 +1,8 @@
-numpy
 pandas 
-polars 
-matplotlib
-seaborn 
-scikit-learn 
-torch 
-torchvision 
-transformers 
-langchain 
-streamlit 
-fastapi 
-uvicorn 
-notebook 
-tqdm
 playwright 
 playwright-stealth  
 google-generativeai 
 openpyxl
+firecrawl-py 
+groq
 
