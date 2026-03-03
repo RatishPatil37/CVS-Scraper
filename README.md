@@ -1,11 +1,11 @@
-💊 CVS Store Brand SKU Scraper v2
+## 💊 CVS Store Brand SKU Scraper v2
 
 A high-precision automated tool designed to resolve product URLs and extract critical data (FSA/HSA eligibility, ingredients, and pricing) from CVS store brand products. This version features a robust "anti-hallucination" logic to ensure data accuracy.
 
-🔄 System Workflow
+## 🔄 System Workflow
 
 The following diagram illustrates how the data flows from your Excel file, through the cloud-based extraction layers, and back to your local machine.
-
+```mermaid
 graph TD
     User([User / Terminal]) -- "Executes Script" --> Script[cvs_scraper_v2.py]
     Script -- "Reads" --> InputExcel[(CVS store brand skus.xlsx)]
@@ -44,10 +44,11 @@ graph TD
     style Firecrawl fill:#f96,stroke:#333,stroke-width:2px
     style Groq fill:#00ff88,stroke:#333,stroke-width:2px,color:#000
 
+```
 
-🛠️ Key Logic Components
+## 🛠️ Key Logic Components
 
-1. Multi-Strategy URL Resolution
+### 1. Multi-Strategy URL Resolution
 
 The script doesn't rely on a single search. It uses a cascading fallback system:
 
@@ -59,11 +60,11 @@ Strategy 2 (Search): Performs a live search query for the specific SKU.
 
 Strategy 3 (UPC): Uses the 12-digit UPC code if available to ensure exact matches.
 
-2. The "Anti-Hallucination" Filter
+### 2. The "Anti-Hallucination" Filter
 
 CVS product pages often include "Recently Viewed" or "Recommended" items at the bottom. v1 of this scraper sometimes mistakenly scraped those instead of the main product. v2 implements a _extract_main_results_hrefs function that cuts the HTML source code at specific markers before parsing links.
 
-3. AI-Powered Extraction
+### 3. AI-Powered Extraction
 
 Instead of fragile CSS selectors, we use Groq (Llama-3.3-70b) to read the page content. This allows the script to:
 
@@ -73,24 +74,24 @@ Cleanly parse long, messy ingredient strings.
 
 Extract prices even when they are hidden in complex promotional banners.
 
-🚀 Execution Guide
+## 🚀 Execution Guide
 
-1. Installation
+### 1. Installation
 
 Install the required dependencies using pip:
-
+```bash
 pip install firecrawl-py groq pandas openpyxl python-dotenv
+```
 
-
-2. API Setup
+### 2. API Setup
 
 Create a .env file in the project root:
-
+```bash
 FIRECRAWL_API_KEY=fc-your_key_here
 GROQ_API_KEY=gsk_your_key_here
+```
 
-
-3. Running the Scraper
+### 3. Running the Scraper
 
 The script supports a --limit flag for testing and a --delay flag to manage rate limits.
 
@@ -100,11 +101,11 @@ python cvs_scraper_v2.py --limit 10
 
 
 Run the full inventory:
-
+```bash
 python cvs_scraper_v2.py
+```
 
-
-📊 Data Output
+## 📊 Data Output
 
 The script generates a formatted Excel file (CVS_results_v2.xlsx) with:
 
@@ -116,7 +117,7 @@ Auto-Resizing: Columns are automatically adjusted for readability.
 
 Incremental Backups: Progress is saved every 5 rows to ensure no data loss during long runs.
 
-⚠️ Important Notes
+## ⚠️ Important Notes
 
 Firecrawl: Requires an active API key to bypass anti-bot protections.
 
