@@ -10,7 +10,7 @@ graph TD
     User([User / Terminal]) -- "Executes Script" --> Script[cvs_scraper_v2.py]
     Script -- "Reads" --> InputExcel[(CVS store brand skus.xlsx)]
     
-    subgraph Discovery ["URL Discovery Layer (Multi-Strategy)"]
+    subgraph Discovery ["URL Discovery Layer"]
         S0[S0: Existing Excel URL]
         S1[S1: Direct Prodid URL]
         S2[S2: SKU Search]
@@ -123,5 +123,5 @@ Firecrawl: Requires an active API key to bypass anti-bot protections.
 
 Input File: Ensure your input Excel has columns named "Sku" and "Description" (or similar). The script will automatically detect them.
 
-Output:
+## Output:
 <img width="1055" height="722" alt="image" src="https://github.com/user-attachments/assets/8b487aa5-31d2-4081-80c5-fbe20cc74ae6" />
