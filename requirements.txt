@@ -1,8 +1,8 @@
+undetected-chromedriver 
+selenium 
+beautifulsoup4 
 pandas 
-playwright 
-playwright-stealth  
-google-generativeai 
-openpyxl
-firecrawl-py 
+openpyxl 
+python-dotenv 
+requests 
 groq
-
