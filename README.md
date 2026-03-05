@@ -1,127 +1,174 @@
-## 💊 CVS Store Brand SKU Scraper v2
+# CVS Store Brand SKU Scraper
 
-A high-precision automated tool designed to resolve product URLs and extract critical data (FSA/HSA eligibility, ingredients, and pricing) from CVS store brand products. This version features a robust "anti-hallucination" logic to ensure data accuracy.
+Scrapes CVS.com product pages for store brand SKUs — extracting product URLs, descriptions, HSA/FSA eligibility, and ingredients — and saves everything to a formatted Excel file.
 
-## 🔄 System Workflow
+---
 
-The following diagram illustrates how the data flows from your Excel file, through the cloud-based extraction layers, and back to your local machine.
+## What Works ✅ and What Doesn't ❌
+
+| Approach | Status | Reason |
+|---|---|---|
+| `undetected-chromedriver` + fresh VPN IP | ✅ **Works** | Bypasses Akamai bot detection |
+| Playwright (headless or stealth) | ❌ **Blocked** | Akamai detects CDP protocol |
+| Firecrawl free tier | ❌ **Broken** | Returns empty HTML (JS not rendered) |
+| ScraperAPI | ⚠️ **Untested** | Should work but costs money |
+| `undetected-chromedriver` on flagged IP | ❌ **Blocked** | Akamai flags datacenter/repeated IPs |
+| BeautifulSoup CSS selectors on product page | ❌ **Fails** | Content lives inside Next.js script JSON, not HTML elements |
+| Regex on Next.js `__next_f.push` script data | ✅ **Works** | All product data is embedded as JSON in `<script>` tags |
+
+---
+
+## Workflow
+
 ```mermaid
-graph TD
-    User([User / Terminal]) -- "Executes Script" --> Script[cvs_scraper_v2.py]
-    Script -- "Reads" --> InputExcel[(CVS store brand skus.xlsx)]
-    
-    subgraph Discovery ["URL Discovery Layer"]
-        S0[S0: Existing Excel URL]
-        S1[S1: Direct Prodid URL]
-        S2[S2: SKU Search]
-        S3[S3: UPC Search]
-    end
-    
-    InputExcel --> S0
-    S0 -- "Fallback" --> S1
-    S1 -- "Fallback" --> S2
-    S2 -- "Fallback" --> S3
-    
-    S1 & S2 & S3 -- "Fetch Request" --> Firecrawl[Firecrawl Engine]
-    
-    subgraph Processing ["Cloud Processing Layer"]
-        Filter{"Anti-Hallucination Filter"}
-        MD[Clean Markdown]
-        Groq[Groq AI - Llama 3.3]
-        
-        Filter -- "Trims 'Recently Viewed'" --> MD
-        MD -- "Analyze Content" --> Groq
-    end
-    
-    Firecrawl -- "Raw HTML" --> Filter
-    Groq -- "Structured JSON" --> Result{Result Handler}
-    
-    Result -- "Success/Fail" --> ExcelOut[(CVS_results_v2.xlsx)]
-    Result -- "Every 5 Rows" --> AutoSave[Incremental Save]
-    
-    style Discovery fill:#1a1a1a,stroke:#333,stroke-width:2px,color:#fff
-    style Processing fill:#1a1a1a,stroke:#333,stroke-width:2px,color:#fff
-    style Firecrawl fill:#f96,stroke:#333,stroke-width:2px
-    style Groq fill:#00ff88,stroke:#333,stroke-width:2px,color:#000
+flowchart TD
+    A([Start]) --> B[Read SKUs from Excel]
+    B --> C[Launch undetected Chrome\nversion_main=145]
+    C --> D[For each SKU]
 
+    D --> E[Search\ncvs.com/search?searchTerm=SKU]
+    E --> F{Product tile\nappeared?}
+
+    F -->|Timeout / Access Denied| G[Log failure\nSwitch VPN server]
+    G --> D
+
+    F -->|Yes| H[Grab href from\nid=product-tile-link-*\nNote: tile ID = prodid NOT sku]
+
+    H --> I[Visit product page\nhttps://cvs.com/shop/...-prodid-XXXXX]
+    I --> J[Wait 8s for\nNext.js hydration]
+
+    J --> K[Grab full page_source\nparse with BeautifulSoup]
+    K --> L[Extract all __next_f.push\nscript tag content]
+
+    L --> M[Regex extract\nvendorDetailsParagraph\n→ Description]
+    L --> N[String check\nHSA/FSA Eligible in data\n→ Yes or No]
+    L --> O[Regex extract\nvendorIngredientsActiveIngredients\n+ vendorIngredientsInactiveIngredient\n→ Ingredients]
+
+    M --> P[Save row to Excel]
+    N --> P
+    O --> P
+
+    P --> Q{More SKUs?}
+    Q -->|Yes, wait 6-12s| D
+    Q -->|No| R[Format Excel\ncolour headers + status rows]
+    R --> S([Done → CVS_results.xlsx])
 ```
 
-## 🛠️ Key Logic Components
+---
 
-### 1. Multi-Strategy URL Resolution
+## Setup
 
-The script doesn't rely on a single search. It uses a cascading fallback system:
+### Requirements
 
-Strategy 0: Reuses URLs already present in the source file.
+- Windows PC (tested on Windows 10/11)
+- Google Chrome version 145 installed
+- US VPN — **Windscribe with Stealth protocol** recommended
+  - Use residential or less-flagged servers (e.g. New York Empire, Chicago Bean)
+  - Avoid servers you've used heavily — Akamai flags repeated IPs
 
-Strategy 1 (Direct): Constructs a URL based on the prodid-{SKU} pattern.
+### Install dependencies
 
-Strategy 2 (Search): Performs a live search query for the specific SKU.
-
-Strategy 3 (UPC): Uses the 12-digit UPC code if available to ensure exact matches.
-
-### 2. The "Anti-Hallucination" Filter
-
-CVS product pages often include "Recently Viewed" or "Recommended" items at the bottom. v1 of this scraper sometimes mistakenly scraped those instead of the main product. v2 implements a _extract_main_results_hrefs function that cuts the HTML source code at specific markers before parsing links.
-
-### 3. AI-Powered Extraction
-
-Instead of fragile CSS selectors, we use Groq (Llama-3.3-70b) to read the page content. This allows the script to:
-
-Identify H/FSA Eligibility even if the text varies (e.g., "FSA Approved" vs "HSA Eligible").
-
-Cleanly parse long, messy ingredient strings.
-
-Extract prices even when they are hidden in complex promotional banners.
-
-## 🚀 Execution Guide
-
-### 1. Installation
-
-Install the required dependencies using pip:
 ```bash
-pip install firecrawl-py groq pandas openpyxl python-dotenv
+pip install undetected-chromedriver selenium beautifulsoup4 pandas openpyxl python-dotenv
 ```
 
-### 2. API Setup
+### ChromeDriver setup (one-time)
 
-Create a .env file in the project root:
+1. Disconnect VPN
+2. Run the scraper once — `undetected-chromedriver` auto-downloads and patches the correct ChromeDriver
+3. Reconnect VPN
+4. ChromeDriver is now cached locally, VPN no longer needed for this step
+
+> If you see `ChromeDriver only supports Chrome version 146` → update `version_main=145` in the script to match your Chrome version (check at `chrome://version`)
+
+---
+
+## Project Structure
+
+```
+scraper/
+├── CVS store brand skus.xlsx     ← Input file (4114 SKUs)
+├── cvs_10skus.py                 ← Main scraper (10 SKUs)
+├── CVS_results.xlsx              ← Output file (auto-created)
+└── .env                          ← Optional (GROQ_API_KEY if using AI extraction)
+```
+
+---
+
+## Usage
+
 ```bash
-FIRECRAWL_API_KEY=fc-your_key_here
-GROQ_API_KEY=gsk_your_key_here
+# Scrape first 10 SKUs
+python cvs_10skus.py
 ```
 
-### 3. Running the Scraper
-
-The script supports a --limit flag for testing and a --delay flag to manage rate limits.
-
-Test a small batch (10 items):
-
-python cvs.py --limit 10
-
-
-Run the full inventory:
-```bash
-python cvs_scraper_v2.py
+To change the number of SKUs, edit this line in `cvs_10skus.py`:
+```python
+NUM_SKUS = 10   # change to any number
 ```
 
-## 📊 Data Output
+---
 
-The script generates a formatted Excel file (CVS_results_v2.xlsx) with:
+## How It Actually Works
 
-Color-Coded Status: 🟩 Green for Success, 🟥 Red for Failures.
+### Step 1 — Search page
+CVS search by SKU always returns exactly **1 result** — the correct product.
+The product tile renders as:
+```html
+<a id="product-tile-link-1720001"
+   href="/shop/total-home-deep-dish-storage-containers-3-ct-prodid-1720001">
+```
+**Important:** The tile `id` uses the internal `prodid` (e.g. `1720001`), NOT the SKU number (e.g. `999279`). So we wait for `[id^='product-tile-link-']` — any tile — not a SKU-specific one.
 
-H/FSA Highlighting: Quickly identify tax-advantaged items.
+### Step 2 — Product page
+CVS uses **Next.js** — all product data is server-rendered and embedded in `<script>` tags as JSON strings, not in visible HTML elements. This is why CSS selectors return 0 results and BeautifulSoup finds nothing in the DOM.
 
-Auto-Resizing: Columns are automatically adjusted for readability.
+The data lives inside `self.__next_f.push(...)` calls and looks like:
+```
+\"vendorDetailsParagraph\":\"Compare to Mucinex® Fast-Max®...\"
+\"vendorIngredientsActiveIngredients\":\"Active ingredients (in each 20 mL): acetaminophen...\"
+34:[\"HSA/FSA Eligible.\",\"NASAL DECONGESTANT:...\"
+```
 
-Incremental Backups: Progress is saved every 5 rows to ensure no data loss during long runs.
+### Step 3 — Extraction
+We collect all `__next_f.push` script content and use regex + string search:
 
-## ⚠️ Important Notes
+| Field | Method | JSON key |
+|---|---|---|
+| Description | Regex | `vendorDetailsParagraph` |
+| HSA/FSA | String search | `"HSA/FSA Eligible"` anywhere in data |
+| Active Ingredients | Regex | `vendorIngredientsActiveIngredients` |
+| Inactive Ingredients | Regex | `vendorIngredientsInactiveIngredient` |
 
-Firecrawl: Requires an active API key to bypass anti-bot protections.
+---
 
-Input File: Ensure your input Excel has columns named "Sku" and "Description" (or similar). The script will automatically detect them.
+## Handling Access Denied (Akamai Bot Detection)
 
-## Output:
-<img width="1055" height="722" alt="image" src="https://github.com/user-attachments/assets/8b487aa5-31d2-4081-80c5-fbe20cc74ae6" />
+CVS uses **Akamai Bot Manager** which tracks:
+- IP reputation (datacenter/VPN IPs get flagged)
+- Session length (too many requests = flagged)
+- Browser fingerprints
+
+**When you get Access Denied:**
+1. Clear Chrome browsing data (`Ctrl+Shift+Delete` → All time → Clear)
+2. Switch to a different Windscribe US server
+3. Re-run the script
+
+**Best practice:** Switch VPN server every 5-8 SKUs to avoid IP flagging. The script saves progress after every SKU so you never lose data.
+
+---
+
+## Output Excel Format
+
+| Column | Description |
+|---|---|
+| Sku Nbr | Original SKU from input |
+| Product Name | From input Excel |
+| Product URL | Full CVS product URL |
+| H/FSA Eligible | Yes / No |
+| Product Description | From `vendorDetailsParagraph` |
+| Ingredients | Active + Inactive combined |
+| Scrape Status | Success / ACCESS_DENIED / Not found |
+
+- 🟩 Green = Success / HSA eligible
+- 🟥 Red = Failed / Access denied
